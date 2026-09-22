@@ -666,7 +666,8 @@ function saveProveedoresToSheets(data){
     const rows=data.map(c=>({
       nombre:c.nombre,deuda:c.deuda,saldo_favor:c.saldoFavor||0,empresa:c.empresa,dias_vencidos:c.dias_vencidos,
       email:c.email||'',telefono:c.telefono||'',ciudad:c.ciudad||'',zona:c.zona||'',categoria:c.categoria||'',
-      facturas:JSON.stringify(c.facturas||[])
+      facturas:JSON.stringify(c.facturas||[]),
+      creditos:JSON.stringify(c.creditos||[])
     }));
     const CHUNK=50;const chunks=[];
     for(let i=0;i<rows.length;i+=CHUNK) chunks.push(rows.slice(i,i+CHUNK));
@@ -693,7 +694,8 @@ function loadProveedoresFromSheets(){
         nombre:row.nombre,deuda:parseFloat(row.deuda)||0,saldoFavor:parseFloat(row.saldo_favor)||0,empresa:row.empresa||'',
         dias_vencidos:parseInt(row.dias_vencidos)||0,email:row.email||'',telefono:row.telefono||'',
         ciudad:row.ciudad||'',zona:row.zona||'',categoria:row.categoria||'',
-        facturas:row.facturas?JSON.parse(row.facturas):[]
+        facturas:row.facturas?JSON.parse(row.facturas):[],
+        creditos:row.creditos?JSON.parse(row.creditos):[]
       }));
       if(loaded.length>0){
         proveedores=loaded;render();
@@ -726,9 +728,19 @@ function facturasEmp(c,emp){
   if(!emp)return c.facturas;
   return c.facturas.filter(f=>empCode(f.emp)===emp);
 }
+function creditosEmp(c,emp){
+  const cr=c.creditos||[];
+  if(!emp)return cr;
+  return cr.filter(cd=>empCode(cd.emp)===emp);
+}
+function netEmpRaw(c,emp){
+  const bruto=facturasEmp(c,emp).reduce((s,f)=>s+f.monto,0);
+  const aplicado=creditosEmp(c,emp).reduce((s,cd)=>s+cd.monto,0);
+  return Math.round((bruto-aplicado)*100)/100;
+}
 function deudaEmp(c,emp){
   if(!emp)return c.deuda;
-  return Math.round(facturasEmp(c,emp).reduce((s,f)=>s+f.monto,0)*100)/100;
+  return Math.max(0,netEmpRaw(c,emp));
 }
 function diasVencEmp(c,emp){
   if(!emp)return c.dias_vencidos;
@@ -868,7 +880,7 @@ function updateMetrics(){
   const filtSum=filt.reduce((s,c)=>s+(fe?deudaEmp(c,fe):c.deuda),0);
   document.getElementById('hero-sub').textContent=isF?'Filtro: '+fmtN(filtSum)+' · '+filt.length+' proveedores':conDeuda.length+' con deuda · '+all.length+' contactos totales';
   let splSum=0,spotsSum=0;
-  conDeuda.forEach(c=>{splSum+=deudaEmp(c,'SPL');spotsSum+=deudaEmp(c,'Spotsline');});
+  conDeuda.forEach(c=>{splSum+=netEmpRaw(c,'SPL');spotsSum+=netEmpRaw(c,'Spotsline');});
   document.getElementById('hero-split').textContent='SPL: '+fmtN(splSum)+' · Spotsline: '+fmtN(spotsSum);
   document.getElementById('m-total').textContent=conDeuda.length;
   document.getElementById('m-deuda-total').textContent=fmtN(allD);
@@ -1437,7 +1449,7 @@ function parseProveedores(wb){
     if(re.test(nv)){
       if(cur)result.push(cur);
       const total=parseFloat(row[ci.monto])||0;
-      cur={nombre:nv.replace(/\s*\(\d+\)$/,'').trim(),_total:total,_emps:new Set(),empresa:'',dias_vencidos:0,facturas:[],email:'',telefono:'',ciudad:'',zona:'',categoria:''};
+      cur={nombre:nv.replace(/\s*\(\d+\)$/,'').trim(),_total:total,_emps:new Set(),empresa:'',dias_vencidos:0,facturas:[],creditos:[],email:'',telefono:'',ciudad:'',zona:'',categoria:''};
     } else if(cur){
       const m=parseFloat(row[ci.monto])||0;
       const emp=ci.emp!==undefined&&row[ci.emp]?String(row[ci.emp]).trim():'';
@@ -1447,6 +1459,9 @@ function parseProveedores(wb){
         const vtoD=toD(row[ci.pago]);const vto=vtoD?vtoD.toISOString().slice(0,10):'-';
         const emisD=toD(row[ci.fec]);const fecha_emision=emisD?emisD.toISOString().slice(0,10):'-';
         cur.facturas.push({num,monto:Math.round(-m*100)/100,vto,fecha_emision,emp});
+      } else if(m>0){
+        const num=String(row[ci.num]||'');
+        cur.creditos.push({num,monto:Math.round(m*100)/100,emp});
       }
     }
   }
