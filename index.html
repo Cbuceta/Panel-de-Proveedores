@@ -64,6 +64,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .m-temp{--m-color:#f39c12;--m-bg:#241a08}
 .m-prev{--m-color:var(--green);--m-bg:var(--green-bg)}
 .m-gest{--m-color:var(--blue);--m-bg:var(--blue-bg)}
+.m-favor{--m-color:var(--blue);--m-bg:var(--blue-bg)}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
 .toolbar input[type=text],.toolbar select{padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--bg2);color:var(--text);font-family:inherit;height:36px}
 .toolbar input[type=text]{width:200px}
@@ -82,6 +83,8 @@ tr:last-child td{border-bottom:none}
 tr:hover td{background:var(--bg3)}
 .badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;font-weight:600;white-space:nowrap}
 .b-prev{background:var(--green-bg);color:var(--green);border:1px solid #1a4a2e}
+.b-favor{background:var(--blue-bg);color:var(--blue);border:1px solid #0d2e4a}
+.b-neutral{background:var(--bg3);color:var(--text3);border:1px solid var(--border2)}
 .b-temp{background:var(--orange-bg);color:var(--orange);border:1px solid #3a2510}
 .b-med{background:#2a1808;color:#f39c12;border:1px solid #3a2510}
 .b-crit{background:var(--red-bg);color:var(--red);border:1px solid #4a1810}
@@ -237,6 +240,15 @@ tr:hover td{background:var(--bg3)}
 .notif-item{padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
 .notif-item:hover{background:var(--bg3)}
 .notif-item:last-child{border-bottom:none}
+.prio-flag{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;white-space:nowrap}
+.prio-flag.prio-alta{background:var(--red-bg);color:var(--red);border:1px solid #4a1810}
+.prio-flag.prio-media{background:var(--orange-bg);color:var(--orange);border:1px solid #3a2510}
+.prio-flag.prio-baja{background:var(--blue-bg);color:var(--blue);border:1px solid #0d2e4a}
+.cal-day{position:relative}
+.cal-day-prio{position:absolute;top:3px;right:3px;width:8px;height:8px;border-radius:50%}
+.cal-day-prio.prio-alta{background:var(--red)}
+.cal-day-prio.prio-media{background:var(--orange)}
+.cal-day-prio.prio-baja{background:var(--blue)}
 </style>
 </head>
 <body>
@@ -284,6 +296,7 @@ tr:hover td{background:var(--bg3)}
     </div>
     <button class="btn" id="btn-reporte"><i class="ti ti-chart-bar"></i> Reporte</button>
     <button class="btn" id="btn-calendario"><i class="ti ti-calendar-due"></i> Calendario</button>
+    <button class="btn" id="btn-saldofavor" style="position:relative"><i class="ti ti-cash"></i> Saldos a favor<span id="saldofavor-badge" style="display:none;position:absolute;top:-6px;right:-6px;background:var(--blue);color:#fff;font-size:10px;border-radius:99px;padding:1px 6px;font-weight:700"></span></button>
     <button class="btn" id="btn-usuarios" style="display:none"><i class="ti ti-users-group"></i> Usuarios</button>
     <button class="btn" id="btn-upload-trigger"><i class="ti ti-refresh"></i> Actualizar</button>
     <button class="btn btn-yellow" id="btn-export"><i class="ti ti-download"></i> Exportar</button>
@@ -310,6 +323,7 @@ tr:hover td{background:var(--bg3)}
       <div class="hero-label" id="hero-label">Deuda total a proveedores</div>
       <div class="hero-amount" id="hero-deuda">$0</div>
       <div class="hero-sub" id="hero-sub"></div>
+      <div class="hero-sub" id="hero-split" style="margin-top:2px"></div>
     </div>
     <div class="hero-counts">
       <div class="hero-count"><div class="hero-count-val" id="hero-clientes">0</div><div class="hero-count-lbl">PROVEEDORES</div></div>
@@ -348,7 +362,12 @@ tr:hover td{background:var(--bg3)}
     <div class="metric m-gest" data-filter="gestion" onclick="setMetricFilter('gestion')">
       <div class="metric-label">Con gestión registrada</div>
       <div class="metric-value" id="m-gest">0</div>
-      <div class="metric-sub">Clic para ver</div>
+      <div class="metric-sub" id="m-gest-prio" style="display:flex;gap:6px;flex-wrap:wrap">Clic para ver</div>
+    </div>
+    <div class="metric m-favor" onclick="renderSaldoFavor();document.getElementById('modal-saldofavor').classList.add('open')">
+      <div class="metric-label">Saldos a favor</div>
+      <div class="metric-value" id="m-saldofavor">0</div>
+      <div class="metric-sub" id="m-saldofavor-d">$0</div>
     </div>
   </div>
 
@@ -366,11 +385,19 @@ tr:hover td{background:var(--bg3)}
       <option value="Vencido medio">🟠 Vencido medio</option>
       <option value="Vencido reciente">🟡 Vencido reciente</option>
       <option value="Sin vencer">🟢 Sin vencer</option>
+      <option value="Sin movimiento">⚪ Sin movimiento</option>
+    </select>
+    <select id="f-prioridad">
+      <option value="">Toda prioridad</option>
+      <option value="alta">🔴 Prioridad alta</option>
+      <option value="media">🟠 Prioridad media</option>
+      <option value="baja">🔵 Prioridad baja</option>
     </select>
     <select id="f-sort" style="width:190px">
       <option value="dias">Ordenar: días vencidos</option>
       <option value="deuda">Ordenar: deuda mayor</option>
       <option value="deudaVencida">Ordenar: deuda vencida mayor</option>
+      <option value="prioridad">Ordenar: prioridad</option>
       <option value="nombre">Ordenar: nombre A-Z</option>
     </select>
     <button class="btn" id="btn-clear" style="display:none;color:var(--yellow);border-color:var(--yellow-dim2)"><i class="ti ti-x"></i> Limpiar</button>
@@ -419,6 +446,14 @@ tr:hover td{background:var(--bg3)}
       <div id="m-fact-total" style="margin-top:10px;text-align:right;font-size:13px;font-weight:700;color:var(--yellow)"></div>
     </div>
     <div id="tab-gestion" class="tab-content">
+      <div id="m-prioridad-actual" style="display:none"></div>
+      <label>Prioridad de este pago</label>
+      <select id="m-prioridad" style="width:100%;padding:8px 11px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--bg3);color:var(--text);font-size:13px;font-family:inherit">
+        <option value="">Sin prioridad</option>
+        <option value="baja">🔵 Baja</option>
+        <option value="media">🟠 Media</option>
+        <option value="alta">🔴 Alta</option>
+      </select>
       <label>Nueva gestión <span style="color:var(--text3);font-weight:400">(usá @ para mencionar a alguien)</span></label>
       <div class="mention-box">
         <div class="mention-dropdown" id="mention-dropdown"></div>
@@ -476,6 +511,25 @@ tr:hover td{background:var(--bg3)}
     <div id="cal-day-detail"></div>
     <div id="cal-sinfecha"></div>
     <div class="modal-footer"><button class="btn" id="cal-close">Cerrar</button></div>
+  </div>
+</div>
+
+<!-- MODAL SALDOS A FAVOR -->
+<div class="modal-bg" id="modal-saldofavor">
+  <div class="modal" style="width:560px">
+    <h2><i class="ti ti-cash" style="vertical-align:-2px;margin-right:8px;color:var(--blue)"></i>Saldos a favor</h2>
+    <div class="modal-sub">Proveedores con pagos o anticipos sin aplicar a ninguna factura — no forman parte de la deuda. Clic en uno para gestionarlo.</div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+      <select id="sf-empresa" style="flex:1;padding:7px 10px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--bg3);color:var(--text);font-size:13px;font-family:inherit">
+        <option value="">Todas las empresas</option>
+        <option value="SPL">SPL</option>
+        <option value="Spotsline">Spotsline</option>
+        <option value="Ambas">Ambas (mixto)</option>
+      </select>
+    </div>
+    <div id="saldofavor-total" style="margin-bottom:12px;font-size:13px;color:var(--text2)"></div>
+    <div id="saldofavor-list"></div>
+    <div class="modal-footer"><button class="btn" id="saldofavor-close">Cerrar</button></div>
   </div>
 </div>
 
@@ -555,6 +609,9 @@ function loadFromSheets(){
           email:row.email||'',
           telefono:row.telefono||'',
           gestionado_por:row.gestionado_por||'',
+          prioridad:row.prioridad||'',
+          prioridad_atendida:!!row.prioridad_atendida,
+          solicitado_por:row.solicitado_por||'',
           historial:row.historial?JSON.parse(row.historial):[],
           ts:row.ts||''
         };
@@ -568,13 +625,16 @@ function loadFromSheets(){
 
 function saveToSheets(){
   const saves=Object.entries(gestiones).map(([i,g])=>{
-    const c=proveedores[parseInt(i)];if(!c||!g.nota)return null;
+    const c=proveedores[parseInt(i)];if(!c||(!g.nota&&!g.prioridad&&!(g.historial&&g.historial.length)))return null;
     return {
       proveedor:c.nombre,
       nota:g.nota||'',
       email:g.email||'',
       telefono:g.telefono||'',
       gestionado_por:g.gestionado_por||'',
+      prioridad:g.prioridad||'',
+      prioridad_atendida:!!g.prioridad_atendida,
+      solicitado_por:g.solicitado_por||'',
       historial:JSON.stringify(g.historial||[]),
       ts:new Date().toISOString()
     };
@@ -604,7 +664,7 @@ function saveProveedoresToSheets(data){
   showSyncStatus('⟳ Publicando datos...','var(--yellow)');
   fetch(SUPABASE_URL+'/rest/v1/proveedores?id=gte.0',{method:'DELETE',headers:SUPABASE_HEADERS}).then(()=>{
     const rows=data.map(c=>({
-      nombre:c.nombre,deuda:c.deuda,empresa:c.empresa,dias_vencidos:c.dias_vencidos,
+      nombre:c.nombre,deuda:c.deuda,saldo_favor:c.saldoFavor||0,empresa:c.empresa,dias_vencidos:c.dias_vencidos,
       email:c.email||'',telefono:c.telefono||'',ciudad:c.ciudad||'',zona:c.zona||'',categoria:c.categoria||'',
       facturas:JSON.stringify(c.facturas||[])
     }));
@@ -630,7 +690,7 @@ function loadProveedoresFromSheets(){
     .then(rows=>{
       if(!rows||rows.length===0){console.log('No proveedores in Supabase');return;}
       const loaded=rows.map(row=>({
-        nombre:row.nombre,deuda:parseFloat(row.deuda)||0,empresa:row.empresa||'',
+        nombre:row.nombre,deuda:parseFloat(row.deuda)||0,saldoFavor:parseFloat(row.saldo_favor)||0,empresa:row.empresa||'',
         dias_vencidos:parseInt(row.dias_vencidos)||0,email:row.email||'',telefono:row.telefono||'',
         ciudad:row.ciudad||'',zona:row.zona||'',categoria:row.categoria||'',
         facturas:row.facturas?JSON.parse(row.facturas):[]
@@ -646,6 +706,44 @@ function loadProveedoresFromSheets(){
 
 function tramo(d){if(d<=0)return'Sin vencer';if(d<=15)return'Vencido reciente';if(d<=45)return'Vencido medio';return'Vencido crítico';}
 function bc(t){return{'Sin vencer':'b-prev','Vencido reciente':'b-temp','Vencido medio':'b-med','Vencido crítico':'b-crit'}[t]||'b-prev';}
+function estadoProveedor(c){
+  if(c.facturas.length>0)return tramo(c.dias_vencidos);
+  if(c.saldoFavor>0)return'Saldo a favor';
+  return'Sin movimiento';
+}
+function bcEstado(t){
+  if(t==='Saldo a favor')return'b-favor';
+  if(t==='Sin movimiento')return'b-neutral';
+  return bc(t);
+}
+function isSaldoFavorOnly(c){return c.deuda===0&&c.saldoFavor>0;}
+function empCode(raw){
+  if(raw==='SPL DISTRIBUIDORA S.R.L')return'SPL';
+  if(raw==='SPOTSLINE S.R.L.')return'Spotsline';
+  return raw||'';
+}
+function facturasEmp(c,emp){
+  if(!emp)return c.facturas;
+  return c.facturas.filter(f=>empCode(f.emp)===emp);
+}
+function deudaEmp(c,emp){
+  if(!emp)return c.deuda;
+  return Math.round(facturasEmp(c,emp).reduce((s,f)=>s+f.monto,0)*100)/100;
+}
+function diasVencEmp(c,emp){
+  if(!emp)return c.dias_vencidos;
+  const vtos=facturasEmp(c,emp).map(f=>f.vto).filter(v=>v!=='-').sort();
+  if(!vtos.length)return 0;
+  const today=new Date();today.setHours(0,0,0,0);
+  return Math.round((today-new Date(vtos[0]))/86400000);
+}
+function rowView(c,fe){
+  if(!fe)return c;
+  return{...c,empresa:fe,deuda:deudaEmp(c,fe),dias_vencidos:diasVencEmp(c,fe),facturas:facturasEmp(c,fe)};
+}
+function deudaVencidaFacturas(facturas){
+  return facturas.reduce((s,f)=>{const d=diasVencInv(f.vto);return(d!==null&&d>0)?s+f.monto:s;},0);
+}
 function diasVencInv(vto){
   if(!vto||vto==='-')return null;
   const today=new Date();today.setHours(0,0,0,0);
@@ -707,8 +805,16 @@ function setMetricFilter(val){
   page=1;updateClearBtn();render();
 }
 
+function filterFromGestPrio(ev,level){
+  ev.stopPropagation();
+  document.getElementById('f-prioridad').value=level;
+  activeFilter='';
+  document.querySelectorAll('.metric').forEach(m=>m.classList.remove('active'));
+  page=1;updateClearBtn();render();
+}
+
 function updateClearBtn(){
-  const has=document.getElementById('search').value||document.getElementById('f-empresa').value||document.getElementById('f-estado').value||activeFilter;
+  const has=document.getElementById('search').value||document.getElementById('f-empresa').value||document.getElementById('f-estado').value||document.getElementById('f-prioridad').value||activeFilter;
   document.getElementById('btn-clear').style.display=has?'inline-flex':'none';
 }
 
@@ -717,41 +823,71 @@ function getFiltered(){
   const fe=document.getElementById('f-empresa').value;
   const fs=document.getElementById('f-sort').value;
   const fest=document.getElementById('f-estado').value;
+  const fprio=document.getElementById('f-prioridad').value;
   let data=proveedores.filter((c,i)=>{
+    if(isSaldoFavorOnly(c))return false;
     if(q&&!c.nombre.toLowerCase().includes(q))return false;
-    if(fe&&c.empresa!==fe)return false;
-    if(fest&&tramo(c.dias_vencidos)!==fest)return false;
+    if(fe&&deudaEmp(c,fe)<=0)return false;
+    const rv=fe?rowView(c,fe):c;
+    if(fest&&estadoProveedor(rv)!==fest)return false;
+    if(fprio&&provPrioridad(i)!==fprio)return false;
     if(activeFilter==='gestion')return !!(gestiones[i]&&gestiones[i].nota);
-    if(activeFilter&&tramo(c.dias_vencidos)!==activeFilter)return false;
+    if(activeFilter&&(rv.facturas.length===0||tramo(rv.dias_vencidos)!==activeFilter))return false;
     return true;
   });
-  if(fs==='dias')data.sort((a,b)=>b.dias_vencidos-a.dias_vencidos);
-  else if(fs==='deuda')data.sort((a,b)=>b.deuda-a.deuda);
-  else if(fs==='deudaVencida')data.sort((a,b)=>deudaVencida(b)-deudaVencida(a));
+  const prioRank={alta:3,media:2,baja:1};
+  const dV=c=>fe?deudaEmp(c,fe):c.deuda;
+  const dD=c=>fe?diasVencEmp(c,fe):c.dias_vencidos;
+  const dVenc=c=>deudaVencidaFacturas(fe?facturasEmp(c,fe):c.facturas);
+  if(fs==='dias')data.sort((a,b)=>dD(b)-dD(a));
+  else if(fs==='deuda')data.sort((a,b)=>dV(b)-dV(a));
+  else if(fs==='deudaVencida')data.sort((a,b)=>dVenc(b)-dVenc(a));
+  else if(fs==='prioridad')data.sort((a,b)=>{
+    const ra=prioRank[provPrioridad(proveedores.indexOf(a))]||0;
+    const rb=prioRank[provPrioridad(proveedores.indexOf(b))]||0;
+    return rb-ra||dD(b)-dD(a);
+  });
   else data.sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'));
   return data;
 }
 
 function updateMetrics(){
-  const all=proveedores;
-  const byT=t=>all.filter(c=>tramo(c.dias_vencidos)===t);
+  const all=proveedores.filter(c=>!isSaldoFavorOnly(c));
+  const conDeuda=all.filter(c=>c.deuda>0);
+  const byT=t=>conDeuda.filter(c=>tramo(c.dias_vencidos)===t);
   const sumD=arr=>arr.reduce((s,c)=>s+c.deuda,0);
-  const allD=sumD(all);
+  const allD=sumD(conDeuda);
   document.getElementById('hero-deuda').textContent=fmtN(allD);
-  document.getElementById('hero-clientes').textContent=all.length;
+  document.getElementById('hero-clientes').textContent=conDeuda.length;
   document.getElementById('hero-crit').textContent=byT('Vencido crítico').length;
   document.getElementById('hero-med').textContent=byT('Vencido medio').length;
   document.getElementById('hero-temp').textContent=byT('Vencido reciente').length;
+  const fe=document.getElementById('f-empresa').value;
   const filt=getFiltered();
-  const isF=filt.length<all.length;
-  document.getElementById('hero-sub').textContent=isF?'Filtro: '+fmtN(sumD(filt))+' · '+filt.length+' proveedores':all.length+' proveedores en cartera';
-  document.getElementById('m-total').textContent=all.length;
+  const isF=filt.length<all.length||!!fe;
+  const filtSum=filt.reduce((s,c)=>s+(fe?deudaEmp(c,fe):c.deuda),0);
+  document.getElementById('hero-sub').textContent=isF?'Filtro: '+fmtN(filtSum)+' · '+filt.length+' proveedores':conDeuda.length+' con deuda · '+all.length+' contactos totales';
+  let splSum=0,spotsSum=0;
+  conDeuda.forEach(c=>{splSum+=deudaEmp(c,'SPL');spotsSum+=deudaEmp(c,'Spotsline');});
+  document.getElementById('hero-split').textContent='SPL: '+fmtN(splSum)+' · Spotsline: '+fmtN(spotsSum);
+  document.getElementById('m-total').textContent=conDeuda.length;
   document.getElementById('m-deuda-total').textContent=fmtN(allD);
   const crit=byT('Vencido crítico');document.getElementById('m-crit').textContent=crit.length;document.getElementById('m-crit-d').textContent=fmtN(sumD(crit));
   const med=byT('Vencido medio');document.getElementById('m-med').textContent=med.length;document.getElementById('m-med-d').textContent=fmtN(sumD(med));
   const temp=byT('Vencido reciente');document.getElementById('m-temp').textContent=temp.length;document.getElementById('m-temp-d').textContent=fmtN(sumD(temp));
   const prev=byT('Sin vencer');document.getElementById('m-prev').textContent=prev.length;document.getElementById('m-prev-d').textContent=fmtN(sumD(prev));
   document.getElementById('m-gest').textContent=gestionesCount;
+  const pc={alta:0,media:0,baja:0};
+  proveedores.forEach((c,i)=>{const pr=provPrioridad(i);if(pr)pc[pr]++;});
+  const prioHtml=[
+    pc.alta?'<span class="prio-flag prio-alta" style="cursor:pointer" onclick="filterFromGestPrio(event,\'alta\')">🔴 '+pc.alta+'</span>':'',
+    pc.media?'<span class="prio-flag prio-media" style="cursor:pointer" onclick="filterFromGestPrio(event,\'media\')">🟠 '+pc.media+'</span>':'',
+    pc.baja?'<span class="prio-flag prio-baja" style="cursor:pointer" onclick="filterFromGestPrio(event,\'baja\')">🔵 '+pc.baja+'</span>':''
+  ].filter(Boolean).join(' ');
+  document.getElementById('m-gest-prio').innerHTML=prioHtml||'<span style="color:var(--text3)">Clic para ver</span>';
+  const sfList=proveedores.filter(c=>c.saldoFavor>0);
+  document.getElementById('m-saldofavor').textContent=sfList.length;
+  document.getElementById('m-saldofavor-d').textContent=fmtN(sfList.reduce((s,c)=>s+c.saldoFavor,0));
 }
 
 let bannerActiveSeg=null;
@@ -773,18 +909,22 @@ function updateAlertBanner(){
     if(k>=mondayStr&&k<=fridayStr){sumSemana+=v.total;v.items.forEach(it=>semanaItems.push({...it,day:k}));}
   });
   const criticos=proveedores.map((c,i)=>({c,i})).filter(({c})=>tramo(c.dias_vencidos)==='Vencido crítico').sort((a,b)=>b.c.dias_vencidos-a.c.dias_vencidos);
+  const prioRank={alta:3,media:2,baja:1};
+  const solicitudes=proveedores.map((c,i)=>({c,i,pr:provPrioridad(i)})).filter(x=>x.pr).sort((a,b)=>prioRank[b.pr]-prioRank[a.pr]);
   window._bannerData={
     atrasado:{sum:sumAtrasado,items:atrasadoItems.sort((a,b)=>b.monto-a.monto)},
     semana:{sum:sumSemana,items:semanaItems.sort((a,b)=>b.monto-a.monto)},
-    critico:{list:criticos}
+    critico:{list:criticos},
+    solicitudes:{list:solicitudes}
   };
-  if(!atrasadoItems.length&&!semanaItems.length&&!criticos.length){
+  if(!atrasadoItems.length&&!semanaItems.length&&!criticos.length&&!solicitudes.length){
     banner.style.display='none';document.getElementById('alert-banner-detail').style.display='none';return;
   }
   const parts=[];
   if(atrasadoItems.length)parts.push('<span class="alert-seg'+(bannerActiveSeg==='atrasado'?' active':'')+'" onclick="toggleBannerSeg(\'atrasado\')">🔴 <strong>'+fmtN(sumAtrasado)+'</strong> atrasado ('+atrasadoItems.length+' fact.)</span>');
   if(semanaItems.length)parts.push('<span class="alert-seg'+(bannerActiveSeg==='semana'?' active':'')+'" onclick="toggleBannerSeg(\'semana\')">🟡 <strong>'+fmtN(sumSemana)+'</strong> vence esta semana ('+semanaItems.length+' fact.)</span>');
   if(criticos.length)parts.push('<span class="alert-seg'+(bannerActiveSeg==='critico'?' active':'')+'" onclick="toggleBannerSeg(\'critico\')">⚠️ <strong>'+criticos.length+'</strong> proveedor'+(criticos.length!==1?'es':'')+' en estado crítico</span>');
+  if(solicitudes.length)parts.push('<span class="alert-seg'+(bannerActiveSeg==='solicitudes'?' active':'')+'" onclick="toggleBannerSeg(\'solicitudes\')">🚩 <strong>'+solicitudes.length+'</strong> solicitud'+(solicitudes.length!==1?'es':'')+' de prioridad</span>');
   document.getElementById('alert-banner-text').innerHTML=parts.join(' &nbsp;·&nbsp; ');
   banner.style.display='flex';
   if(bannerActiveSeg)renderBannerDetail(bannerActiveSeg);
@@ -805,14 +945,22 @@ function renderBannerDetail(seg){
     html='<div class="section-title">'+(seg==='atrasado'?'Facturas atrasadas':'Vencen esta semana')+'</div>';
     html+=data.items.map(it=>{
       const idx=proveedores.findIndex(p=>p.nombre===it.prov);
+      const pr=provPrioridad(idx);const prioFlag=pr?'<span class="prio-flag prio-'+pr+'" style="margin-right:5px">'+prioLabel[pr]+'</span>':'';
       const dLbl=new Date(it.day+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
-      return'<div class="cal-item clickable" onclick="openModal('+idx+');document.getElementById(\'alert-banner-detail\').scrollIntoView({behavior:\'smooth\'})"><span>'+it.prov+' <span style="color:var(--text3)">· '+it.num+' · vto '+dLbl+'</span></span><span style="font-weight:600;color:var(--yellow2)">'+fmtN(it.monto)+'</span></div>';
+      return'<div class="cal-item clickable" onclick="openModal('+idx+');document.getElementById(\'alert-banner-detail\').scrollIntoView({behavior:\'smooth\'})"><span>'+prioFlag+it.prov+' <span style="color:var(--text3)">· '+it.num+' · vto '+dLbl+'</span></span><span style="font-weight:600;color:var(--yellow2)">'+fmtN(it.monto)+'</span></div>';
     }).join('');
     html+='<div style="text-align:right;margin-top:8px;font-weight:700;color:var(--yellow)">Total: '+fmtN(data.sum)+'</div>';
   } else if(seg==='critico'){
     if(!d.critico.list.length){box.style.display='none';return;}
     html='<div class="section-title">Proveedores en estado crítico (+45 días)</div>';
     html+=d.critico.list.map(({c,i})=>'<div class="cal-item clickable" onclick="openModal('+i+')"><span>'+c.nombre+' <span style="color:var(--text3)">· +'+c.dias_vencidos+'d</span></span><span style="font-weight:600;color:var(--yellow2)">'+fmtN(c.deuda)+'</span></div>').join('');
+  } else if(seg==='solicitudes'){
+    if(!d.solicitudes.list.length){box.style.display='none';return;}
+    html='<div class="section-title">Solicitudes de prioridad pendientes</div>';
+    html+=d.solicitudes.list.map(({c,i,pr})=>{
+      const g=gestiones[i]||{};
+      return'<div class="cal-item clickable" onclick="openModal('+i+')"><span><span class="prio-flag prio-'+pr+'" style="margin-right:5px">'+prioLabel[pr]+'</span>'+c.nombre+(g.solicitado_por?' <span style="color:var(--text3)">· pidió '+g.solicitado_por+'</span>':'')+'</span><span style="font-weight:600;color:var(--yellow2)">'+fmtN(c.deuda)+'</span></div>';
+    }).join('');
   }
   box.innerHTML=html;box.style.display='block';
 }
@@ -830,8 +978,11 @@ document.getElementById('alert-banner-cal').addEventListener('click',()=>{
 });
 
 function render(){
-  const data=getFiltered();updateMetrics();updateAlertBanner();
-  let bar='<span>Mostrando <strong>'+data.length+'</strong> proveedores</span><span>Deuda: <strong>'+fmtN(data.reduce((s,c)=>s+c.deuda,0))+'</strong></span>';
+  const data=getFiltered();updateMetrics();updateAlertBanner();updateSaldoFavorBadge();
+  const fe=document.getElementById('f-empresa').value;
+  const dataView=fe?data.map(c=>rowView(c,fe)):data;
+  let bar='<span>Mostrando <strong>'+data.length+'</strong> proveedores</span><span>Deuda: <strong>'+fmtN(dataView.reduce((s,c)=>s+c.deuda,0))+'</strong></span>';
+  if(fe)bar+='<span>Empresa: <strong style="color:var(--yellow)">'+fe+'</strong></span>';
   if(activeFilter)bar+='<span>Filtro: <strong style="color:var(--yellow)">'+(activeFilter==='gestion'?'Con gestión':activeFilter)+'</strong></span>';
   document.getElementById('summary-bar').innerHTML=bar;
   const pageData=data.slice((page-1)*PER,page*PER);
@@ -839,15 +990,19 @@ function render(){
   const sortMode=document.getElementById('f-sort').value;
   document.getElementById('empty').style.display=data.length?'none':'block';
   if(!data.length){tbody.innerHTML='';renderPag(0);return;}
-  tbody.innerHTML=pageData.map(c=>{
-    const i=proveedores.indexOf(c);const g=gestiones[i]||{};
-    const t=tramo(c.dias_vencidos);const wa=waLink(c,i);const ml=emailLink(c,i);
+  tbody.innerHTML=pageData.map(cFull=>{
+    const i=proveedores.indexOf(cFull);const g=gestiones[i]||{};
+    const c=fe?rowView(cFull,fe):cFull;
+    const t=estadoProveedor(c);const wa=waLink(cFull,i);const ml=emailLink(cFull,i);
     const nota=g.nota?'<span class="nota-chip" title="'+g.nota.replace(/"/g,"'")+'"><i class="ti ti-note" style="font-size:10px;vertical-align:-1px"></i> '+g.nota.slice(0,35)+(g.nota.length>35?'…':'')+'</span>':'';
-    const ciudad=c.ciudad?'<span class="ciudad-tag"><i class="ti ti-map-pin" style="font-size:10px;vertical-align:-1px"></i> '+c.ciudad+'</span>':'';
-    const invs=c.facturas.slice().sort((a,b)=>{const da=diasVencInv(a.vto),db=diasVencInv(b.vto);if(da===null&&db===null)return 0;if(da===null)return 1;if(db===null)return -1;return db-da;}).slice(0,2).map(f=>{const et=f.emp?'<span class="inv-emp '+(f.emp==='SPL DISTRIBUIDORA S.R.L'?'ie-spl':'ie-spots')+'">'+(f.emp==='SPL DISTRIBUIDORA S.R.L'?'SPL':'SL')+'</span>':'';const ic=invClass(f);return'<span class="inv-line"><span class="inv-dot '+ic.cls+'"></span>'+f.num+et+' · '+fmtN(f.monto)+'</span>';}).join('')+(c.facturas.length>2?'<span class="inv-line" style="color:var(--text3)">+'+(c.facturas.length-2)+' más</span>':'');
-    const dias=c.dias_vencidos>0?'<span class="dias-neg">+'+c.dias_vencidos+'d</span>':'<span class="dias-ok">'+c.dias_vencidos+'d</span>';
-    const vencSub=sortMode==='deudaVencida'?'<div style="font-size:10px;color:var(--red);font-weight:600;margin-top:1px">vencido: '+fmtN(deudaVencida(c))+'</div>':'';
-    return'<tr><td><span style="font-weight:600">'+c.nombre+'</span>'+nota+ciudad+'</td><td>'+empBadge(c.empresa)+'</td><td><span class="badge '+bc(t)+'">'+t+'</span></td><td style="text-align:center">'+dias+'</td><td class="amount">'+fmtN(c.deuda)+vencSub+'</td><td>'+invs+'</td><td><div class="actions">'+(wa?'<a class="act-btn wa" href="'+wa+'" target="_blank"><i class="ti ti-brand-whatsapp"></i></a>':'<span class="act-btn disabled"><i class="ti ti-brand-whatsapp"></i></span>')+(ml?'<a class="act-btn em" href="'+ml+'"><i class="ti ti-mail"></i></a>':'<span class="act-btn disabled"><i class="ti ti-mail"></i></span>')+'<button class="act-btn nt" onclick="openModal('+i+')"><i class="ti ti-notes"></i></button></div></td></tr>';
+    const pr=provPrioridad(i);
+    const prioFlag=pr?'<span class="prio-flag prio-'+pr+'" style="margin-left:6px">'+prioLabel[pr]+'</span>':'';
+    const ciudad=cFull.ciudad?'<span class="ciudad-tag"><i class="ti ti-map-pin" style="font-size:10px;vertical-align:-1px"></i> '+cFull.ciudad+'</span>':'';
+    const invs=c.facturas.length?c.facturas.slice().sort((a,b)=>{const da=diasVencInv(a.vto),db=diasVencInv(b.vto);if(da===null&&db===null)return 0;if(da===null)return 1;if(db===null)return -1;return db-da;}).slice(0,2).map(f=>{const et=f.emp?'<span class="inv-emp '+(f.emp==='SPL DISTRIBUIDORA S.R.L'?'ie-spl':'ie-spots')+'">'+(f.emp==='SPL DISTRIBUIDORA S.R.L'?'SPL':'SL')+'</span>':'';const ic=invClass(f);return'<span class="inv-line"><span class="inv-dot '+ic.cls+'"></span>'+f.num+et+' · '+fmtN(f.monto)+'</span>';}).join('')+(c.facturas.length>2?'<span class="inv-line" style="color:var(--text3)">+'+(c.facturas.length-2)+' más</span>':''):'<span class="inv-line" style="color:var(--text3)">'+(cFull.saldoFavor>0?'Sin factura asociada':'Sin movimientos')+'</span>';
+    const dias=c.facturas.length===0?'<span style="color:var(--text3)">—</span>':(c.dias_vencidos>0?'<span class="dias-neg">+'+c.dias_vencidos+'d</span>':'<span class="dias-ok">'+c.dias_vencidos+'d</span>');
+    const vencSub=sortMode==='deudaVencida'?'<div style="font-size:10px;color:var(--red);font-weight:600;margin-top:1px">vencido: '+fmtN(deudaVencidaFacturas(c.facturas))+'</div>':'';
+    const montoCell=c.deuda>0?fmtN(c.deuda)+vencSub:(!fe&&cFull.saldoFavor>0?'<span style="color:var(--blue)">+'+fmtN(cFull.saldoFavor)+' a favor</span>':'<span style="color:var(--text3)">—</span>');
+    return'<tr><td><span style="font-weight:600">'+cFull.nombre+'</span>'+prioFlag+nota+ciudad+'</td><td>'+empBadge(c.empresa)+'</td><td><span class="badge '+bcEstado(t)+'">'+t+'</span></td><td style="text-align:center">'+dias+'</td><td class="amount">'+montoCell+'</td><td>'+invs+'</td><td><div class="actions">'+(wa?'<a class="act-btn wa" href="'+wa+'" target="_blank"><i class="ti ti-brand-whatsapp"></i></a>':'<span class="act-btn disabled"><i class="ti ti-brand-whatsapp"></i></span>')+(ml?'<a class="act-btn em" href="'+ml+'"><i class="ti ti-mail"></i></a>':'<span class="act-btn disabled"><i class="ti ti-mail"></i></span>')+'<button class="act-btn nt" onclick="openModal('+i+')"><i class="ti ti-notes"></i></button></div></td></tr>';
   }).join('');
   renderPag(data.length);
 }
@@ -871,17 +1026,48 @@ function updateModalBtns(c,i){
   eb.href=ml||'#';eb.style.opacity=ml?'1':'.3';eb.style.pointerEvents=ml?'auto':'none';
 }
 
+const prioLabel={alta:'🔴 Alta',media:'🟠 Media',baja:'🔵 Baja'};
+function provPrioridad(i){
+  const g=gestiones[i];
+  return(g&&g.prioridad&&!g.prioridad_atendida)?g.prioridad:null;
+}
+
 function openModal(idx){
   currentIdx=idx;const c=proveedores[idx];const g=gestiones[idx]||{};
   document.getElementById('mtitle').textContent=c.nombre;
   const desglose=desgloseDeuda(c);
   const desgloseHtml=desglose.length>1?'<div style="margin-top:6px;display:flex;gap:14px;flex-wrap:wrap">'+desglose.map(({t,monto})=>'<span style="font-size:12px">'+t+': <strong style="color:'+tramoColor[t]+'">'+fmtF(monto)+'</strong></span>').join('')+'</div>':'';
-  document.getElementById('msub').innerHTML=empBadge(c.empresa)+'&nbsp; Deuda total: <strong style="color:var(--yellow)">'+fmtF(c.deuda)+'</strong>'+(c.dias_vencidos>0?' &nbsp;<span style="color:var(--red)">+'+c.dias_vencidos+' días</span>':'')+desgloseHtml;
+  let subLine;
+  if(c.deuda>0){
+    subLine='Deuda total: <strong style="color:var(--yellow)">'+fmtF(c.deuda)+'</strong>'+(c.dias_vencidos>0?' &nbsp;<span style="color:var(--red)">+'+c.dias_vencidos+' días</span>':'')+desgloseHtml;
+  }else if(c.saldoFavor>0){
+    subLine='<strong style="color:var(--blue)">Saldo a favor: '+fmtF(c.saldoFavor)+'</strong> &nbsp;<span style="color:var(--text3);font-size:12px">— probablemente falta cargar una factura</span>';
+  }else{
+    subLine='<span style="color:var(--text3)">Sin deuda ni movimientos pendientes registrados</span>';
+  }
+  document.getElementById('msub').innerHTML=empBadge(c.empresa)+'&nbsp; '+subLine;
   document.getElementById('m-email').value=getEmail(idx);
   document.getElementById('m-tel').value=getTel(idx);
   document.getElementById('m-nota').value='';
+  document.getElementById('m-prioridad').value=g.prioridad||'';
+  const prioBox=document.getElementById('m-prioridad-actual');
+  if(g.prioridad&&!g.prioridad_atendida){
+    prioBox.style.display='block';
+    prioBox.innerHTML='<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">'
+      +'<span style="font-size:12px"><span class="prio-flag prio-'+g.prioridad+'">'+prioLabel[g.prioridad]+'</span> solicitada'+(g.solicitado_por?' por <strong>'+g.solicitado_por+'</strong>':'')+'</span>'
+      +'<button class="btn" style="padding:4px 10px;font-size:11px" id="m-prioridad-atender">Marcar atendida</button></div>';
+    document.getElementById('m-prioridad-atender').addEventListener('click',async()=>{
+      const prev=gestiones[currentIdx]||{};
+      gestiones[currentIdx]={...prev,prioridad_atendida:true};
+      await saveToSheets();
+      showToast('Solicitud marcada como atendida ✓');
+      openModal(currentIdx);render();
+    });
+  }else{
+    prioBox.style.display='none';prioBox.innerHTML='';
+  }
   document.getElementById('m-info-grid').innerHTML=[['Ciudad',c.ciudad||'—'],['Zona',c.zona||'—'],['Categoría',c.categoria||'—'],['Empresa',c.empresa]].map(([l,v])=>'<div class="info-item"><span class="info-label">'+l+'</span><span class="info-value">'+v+'</span></div>').join('');
-  document.getElementById('m-facturas').innerHTML=c.facturas.slice().sort((a,b)=>{
+  document.getElementById('m-facturas').innerHTML=c.facturas.length?c.facturas.slice().sort((a,b)=>{
     const da=diasVencInv(a.vto),db=diasVencInv(b.vto);
     if(da===null&&db===null)return 0;if(da===null)return 1;if(db===null)return -1;
     return db-da;
@@ -891,8 +1077,8 @@ function openModal(idx){
     const ic=invClass(f);
     const diasTxt=ic.dias!==undefined?(ic.dias>0?'<span style="color:var(--red);font-weight:700;font-size:11px">+'+ic.dias+'d</span>':'<span style="color:var(--green);font-size:11px">'+ic.dias+'d</span>'):'';
     return'<div class="inv-row '+ic.cls+'"><span style="font-weight:600"><span class="inv-dot '+ic.cls+'"></span>'+f.num+' '+et+'</span><div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">'+emision+'<span style="color:var(--text3);font-size:11px">Vto: <strong style="color:var(--text2)">'+f.vto+'</strong></span>'+diasTxt+'<span style="font-weight:700;color:var(--yellow2)">'+fmtF(f.monto)+'</span></div></div>';
-  }).join('');
-  document.getElementById('m-fact-total').textContent='Total: '+fmtF(c.deuda);
+  }).join(''):'<div style="color:var(--text3);font-size:13px;padding:8px 0">'+(c.saldoFavor>0?'No hay facturas pendientes — este proveedor tiene un saldo a favor de '+fmtF(c.saldoFavor)+' sin aplicar.':'Este proveedor no tiene facturas pendientes de pago.')+'</div>';
+  document.getElementById('m-fact-total').textContent=c.deuda>0?'Total: '+fmtF(c.deuda):(c.saldoFavor>0?'Saldo a favor: '+fmtF(c.saldoFavor):'');
   const hist=(g.historial||[]).slice().reverse();
   document.getElementById('m-historial').innerHTML=hist.length?'<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Historial</div>'+hist.map(h=>'<div class="hist-item"><div class="hist-date">'+h.fecha+(h.por?' · <strong style="color:var(--text2)">'+h.por+'</strong>':'')+'</div>'+h.nota+'</div>').join(''):'<div style="color:var(--text3);font-size:12px">Sin gestiones aún.</div>';
   updateModalBtns(c,idx);switchTab('contacto');
@@ -919,8 +1105,24 @@ document.getElementById('msave').addEventListener('click',async()=>{
   const nota=document.getElementById('m-nota').value.trim();
   const hist=prev.historial||[];
   const autor=currentUser?currentUser.nombre:'';
-  if(nota){const d=new Date();hist.push({fecha:d.toLocaleDateString('es-AR')+' '+d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}),nota,por:autor});if(!prev.nota)gestionesCount++;}
-  gestiones[currentIdx]={email:document.getElementById('m-email').value.trim(),telefono:document.getElementById('m-tel').value.replace(/\D/g,''),nota:nota||prev.nota||'',gestionado_por:autor||prev.gestionado_por||'',historial:hist,ts:new Date().toISOString()};
+  const d=new Date();
+  const fechaHora=d.toLocaleDateString('es-AR')+' '+d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+  if(nota){hist.push({fecha:fechaHora,nota,por:autor});if(!prev.nota)gestionesCount++;}
+  const prioridad=document.getElementById('m-prioridad').value;
+  const prioridadChanged=prioridad!==(prev.prioridad||'');
+  if(prioridadChanged){
+    hist.push({fecha:fechaHora,nota:prioridad?'Prioridad marcada como '+prioLabel[prioridad]:'Prioridad quitada',por:autor});
+  }
+  gestiones[currentIdx]={
+    email:document.getElementById('m-email').value.trim(),
+    telefono:document.getElementById('m-tel').value.replace(/\D/g,''),
+    nota:nota||prev.nota||'',
+    gestionado_por:autor||prev.gestionado_por||'',
+    prioridad:prioridad||'',
+    prioridad_atendida:prioridad?(prioridadChanged?false:(prev.prioridad_atendida||false)):true,
+    solicitado_por:prioridad?(prioridadChanged?autor:(prev.solicitado_por||autor)):(prev.solicitado_por||''),
+    historial:hist,ts:new Date().toISOString()
+  };
   const proveedorNombre=proveedores[currentIdx].nombre;
   document.getElementById('modal-bg').classList.remove('open');
   render();showToast('Gestión guardada ✓');
@@ -932,6 +1134,7 @@ document.getElementById('msave').addEventListener('click',async()=>{
 function buildReporte(filterEmp){
   const map={};
   proveedores.forEach((c,i)=>{
+    if(c.deuda<=0)return;
     const v=c.empresa||'Sin asignar';
     if(filterEmp&&v!==filterEmp)return;
     if(!map[v])map[v]={clientes:[],deuda:0,crit:0,med:0,temp:0,prev:0,conGestion:0};
@@ -1061,13 +1264,14 @@ function adjustToBusinessDay(dateStr){
 
 function buildPagosPorDia(filterEmp){
   const map={};const sinFecha=[];
-  proveedores.forEach(c=>{
+  proveedores.forEach((c,i)=>{
     if(filterEmp&&c.empresa!==filterEmp)return;
+    const pr=provPrioridad(i);
     c.facturas.forEach(f=>{
-      if(f.vto==='-'){sinFecha.push({prov:c.nombre,...f});return;}
+      if(f.vto==='-'){sinFecha.push({prov:c.nombre,prioridad:pr,...f});return;}
       const adj=adjustToBusinessDay(f.vto);const shifted=adj!==f.vto;
       if(!map[adj])map[adj]={items:[],total:0};
-      map[adj].items.push({prov:c.nombre,...f,shifted});
+      map[adj].items.push({prov:c.nombre,prioridad:pr,...f,shifted});
       map[adj].total+=f.monto;
     });
   });
@@ -1116,7 +1320,11 @@ function renderCalendario(){
       if(dateStr===todayStr)cls+=' today';
       if(data)cls+=dateStr<todayStr?' vencido':' pendiente';
       if(dateStr===calSelectedDay)cls+=' selected';
+      const prioRank={alta:3,media:2,baja:1};
+      const dayPrio=data?data.items.reduce((top,it)=>it.prioridad&&(!top||prioRank[it.prioridad]>prioRank[top])?it.prioridad:top,null):null;
+      const prioDot=dayPrio?'<span class="cal-day-prio prio-'+dayPrio+'" title="Prioridad '+dayPrio+'"></span>':'';
       dayCells.push('<div class="'+cls+'"'+(data?' onclick="showDayDetail(\''+dateStr+'\')"':'')+'>'
+        +prioDot
         +'<div class="cal-day-num">'+d.getDate()+'</div>'
         +(data?'<div class="cal-day-amt">'+fmtN(data.total)+'</div><div class="cal-day-count">'+data.items.length+' fact.</div>':'')
         +'</div>');
@@ -1129,7 +1337,7 @@ function renderCalendario(){
   }
   window._calWeekMap=weekMap;
   html+='</div>';
-  html+='<div class="cal-legend"><span><i style="background:var(--red-bg);border:1px solid var(--red)"></i>Vencido</span><span><i style="background:var(--green-bg);border:1px solid var(--green)"></i>Pendiente</span><span><i style="background:transparent;border:2px solid var(--yellow)"></i>Hoy</span><span>Los vencimientos de sáb/dom se suman al lunes</span></div>';
+  html+='<div class="cal-legend"><span><i style="background:var(--red-bg);border:1px solid var(--red)"></i>Vencido</span><span><i style="background:var(--green-bg);border:1px solid var(--green)"></i>Pendiente</span><span><i style="background:transparent;border:2px solid var(--yellow)"></i>Hoy</span><span><i style="background:var(--red);border-radius:50%"></i>Prioridad alta/media/baja</span><span>Los vencimientos de sáb/dom se suman al lunes</span></div>';
   document.getElementById('cal-grid-wrap').innerHTML=html;
 
   if(calSelectedDay&&map[calSelectedDay])showDayDetail(calSelectedDay);
@@ -1138,7 +1346,7 @@ function renderCalendario(){
 
   document.getElementById('cal-sinfecha').innerHTML=sinFecha.length?
     '<div class="section-title" style="margin-top:16px">Sin fecha de vencimiento cargada</div>'
-    +sinFecha.map(it=>'<div class="cal-item"><span>'+it.prov+' <span style="color:var(--text3)">· '+it.num+'</span></span><span style="font-weight:600;color:var(--yellow2)">'+fmtN(it.monto)+'</span></div>').join('')
+    +sinFecha.map(it=>'<div class="cal-item"><span>'+(it.prioridad?'<span class="prio-flag prio-'+it.prioridad+'" style="margin-right:5px">'+prioLabel[it.prioridad]+'</span>':'')+it.prov+' <span style="color:var(--text3)">· '+it.num+'</span></span><span style="font-weight:600;color:var(--yellow2)">'+fmtN(it.monto)+'</span></div>').join('')
     :'';
 }
 
@@ -1149,7 +1357,7 @@ function showDayDetail(dateStr){
   const d=new Date(dateStr+'T00:00:00');
   const label=d.toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'});
   let html='<div class="section-title" style="margin-top:14px">'+label.charAt(0).toUpperCase()+label.slice(1)+'</div>';
-  html+=data.items.sort((a,b)=>b.monto-a.monto).map(it=>'<div class="cal-item"><span>'+it.prov+' <span style="color:var(--text3)">· '+it.num+'</span>'+(it.shifted?' <span style="color:var(--text3);font-size:10px">(vto fin de semana)</span>':'')+'</span><span style="font-weight:600;color:var(--yellow2)">'+fmtN(it.monto)+'</span></div>').join('');
+  html+=data.items.sort((a,b)=>b.monto-a.monto).map(it=>'<div class="cal-item"><span>'+(it.prioridad?'<span class="prio-flag prio-'+it.prioridad+'" style="margin-right:5px">'+prioLabel[it.prioridad]+'</span>':'')+it.prov+' <span style="color:var(--text3)">· '+it.num+'</span>'+(it.shifted?' <span style="color:var(--text3);font-size:10px">(vto fin de semana)</span>':'')+'</span><span style="font-weight:600;color:var(--yellow2)">'+fmtN(it.monto)+'</span></div>').join('');
   html+='<div style="text-align:right;margin-top:8px;font-weight:700;color:var(--yellow)">Total: '+fmtN(data.total)+'</div>';
   document.getElementById('cal-day-detail').innerHTML=html;
   const cell=[...document.querySelectorAll('.cal-day')].find(el=>el.getAttribute('onclick')==="showDayDetail('"+dateStr+"')");
@@ -1167,7 +1375,7 @@ function showWeekDetail(weekKey){
   Object.keys(byDay).sort().forEach(day=>{
     const dLbl=new Date(day+'T00:00:00').toLocaleDateString('es-AR',{weekday:'short',day:'2-digit',month:'2-digit'});
     html+='<div style="font-size:11px;color:var(--text3);text-transform:uppercase;margin:8px 0 2px">'+dLbl+'</div>';
-    html+=byDay[day].sort((a,b)=>b.monto-a.monto).map(it=>'<div class="cal-item"><span>'+it.prov+' <span style="color:var(--text3)">· '+it.num+'</span>'+(it.shifted?' <span style="color:var(--text3);font-size:10px">(vto fin de semana)</span>':'')+'</span><span style="font-weight:600;color:var(--yellow2)">'+fmtN(it.monto)+'</span></div>').join('');
+    html+=byDay[day].sort((a,b)=>b.monto-a.monto).map(it=>'<div class="cal-item"><span>'+(it.prioridad?'<span class="prio-flag prio-'+it.prioridad+'" style="margin-right:5px">'+prioLabel[it.prioridad]+'</span>':'')+it.prov+' <span style="color:var(--text3)">· '+it.num+'</span>'+(it.shifted?' <span style="color:var(--text3);font-size:10px">(vto fin de semana)</span>':'')+'</span><span style="font-weight:600;color:var(--yellow2)">'+fmtN(it.monto)+'</span></div>').join('');
   });
   html+='<div style="text-align:right;margin-top:8px;font-weight:700;color:var(--yellow)">Total semana: '+fmtN(data.total)+'</div>';
   document.getElementById('cal-day-detail').innerHTML=html;
@@ -1184,6 +1392,26 @@ document.getElementById('modal-calendario').addEventListener('click',e=>{if(e.ta
 document.getElementById('cal-empresa').addEventListener('change',()=>{calSelectedDay=null;calSelectedWeek=null;renderCalendario();});
 document.getElementById('cal-prev').addEventListener('click',()=>{calDate.setMonth(calDate.getMonth()-1);calSelectedDay=null;calSelectedWeek=null;renderCalendario();});
 document.getElementById('cal-next').addEventListener('click',()=>{calDate.setMonth(calDate.getMonth()+1);calSelectedDay=null;calSelectedWeek=null;renderCalendario();});
+
+// --- SALDOS A FAVOR ---
+function updateSaldoFavorBadge(){
+  const n=proveedores.filter(c=>c.saldoFavor>0).length;
+  const badge=document.getElementById('saldofavor-badge');
+  if(n){badge.textContent=n;badge.style.display='inline-block';}else badge.style.display='none';
+}
+function renderSaldoFavor(){
+  const fv=document.getElementById('sf-empresa').value;
+  const list=proveedores.map((c,i)=>({c,i})).filter(({c})=>c.saldoFavor>0&&(!fv||c.empresa===fv)).sort((a,b)=>b.c.saldoFavor-a.c.saldoFavor);
+  const total=list.reduce((s,{c})=>s+c.saldoFavor,0);
+  document.getElementById('saldofavor-total').innerHTML='<strong style="color:var(--blue)">'+fmtN(total)+'</strong> en '+list.length+' proveedor'+(list.length!==1?'es':'');
+  document.getElementById('saldofavor-list').innerHTML=list.length?list.map(({c,i})=>
+    '<div class="cal-item clickable" onclick="document.getElementById(\'modal-saldofavor\').classList.remove(\'open\');openModal('+i+')"><span>'+c.nombre+' '+empBadge(c.empresa)+'</span><span style="font-weight:600;color:var(--blue)">+'+fmtN(c.saldoFavor)+'</span></div>'
+  ).join(''):'<div style="color:var(--text3);text-align:center;padding:1.5rem">Sin saldos a favor'+(fv?' en '+fv:'')+'</div>';
+}
+document.getElementById('btn-saldofavor').addEventListener('click',()=>{renderSaldoFavor();document.getElementById('modal-saldofavor').classList.add('open');});
+document.getElementById('saldofavor-close').addEventListener('click',()=>document.getElementById('modal-saldofavor').classList.remove('open'));
+document.getElementById('modal-saldofavor').addEventListener('click',e=>{if(e.target===document.getElementById('modal-saldofavor'))document.getElementById('modal-saldofavor').classList.remove('open');});
+document.getElementById('sf-empresa').addEventListener('change',renderSaldoFavor);
 
 // --- UPLOAD ---
 function cleanTel(t){if(!t)return'';t=String(t).replace(/[^\d]/g,'');if(t.startsWith('54')&&t.length>10)t=t.slice(2);if(t.startsWith('0')&&t.length>10)t=t.slice(1);return t;}
@@ -1225,6 +1453,7 @@ function parseProveedores(wb){
   if(cur)result.push(cur);
   result.forEach(c=>{
     c.deuda=c._total<0?Math.round(-c._total*100)/100:0;
+    c.saldoFavor=c._total>0?Math.round(c._total*100)/100:0;
     const emps=c._emps;
     if(emps.has('SPL DISTRIBUIDORA S.R.L')&&emps.has('SPOTSLINE S.R.L.'))c.empresa='Ambas';
     else if(emps.has('SPL DISTRIBUIDORA S.R.L'))c.empresa='SPL';
@@ -1234,7 +1463,7 @@ function parseProveedores(wb){
     if(vtos.length)c.dias_vencidos=Math.round((today-new Date(vtos[0]))/86400000);
     delete c._total;delete c._emps;
   });
-  return result.filter(c=>c.deuda>0);
+  return result;
 }
 
 function parseContactos(wb){
@@ -1338,12 +1567,12 @@ document.getElementById('btn-export').addEventListener('click',()=>{
 });
 
 document.getElementById('btn-clear').addEventListener('click',()=>{
-  document.getElementById('search').value='';document.getElementById('f-empresa').value='';document.getElementById('f-estado').value='';
+  document.getElementById('search').value='';document.getElementById('f-empresa').value='';document.getElementById('f-estado').value='';document.getElementById('f-prioridad').value='';
   activeFilter='';document.querySelectorAll('.metric').forEach(m=>m.classList.remove('active'));
   page=1;updateClearBtn();render();
 });
 
-['search','f-empresa','f-estado','f-sort'].forEach(id=>{document.getElementById(id).addEventListener(id==='search'?'input':'change',()=>{page=1;updateClearBtn();render();});});
+['search','f-empresa','f-estado','f-prioridad','f-sort'].forEach(id=>{document.getElementById(id).addEventListener(id==='search'?'input':'change',()=>{page=1;updateClearBtn();render();});});
 
 document.getElementById('btn-sync').addEventListener('click',()=>{loadProveedoresFromSheets();loadFromSheets();});
 
@@ -1447,13 +1676,40 @@ document.getElementById('btn-logout').addEventListener('click',()=>{
 });
 
 // --- GESTIÓN DE USUARIOS (admin) ---
+let resetTargetId=null;
 function renderUsuariosList(){
-  document.getElementById('usuarios-list').innerHTML=usuariosProvAll.map(u=>
-    '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px">'
-    +'<span>'+u.nombre+' <span style="color:var(--text3);font-size:11px">@'+u.usuario+' · '+(u.rol==='admin'?'Admin':'Usuario')+(u.activo?'':' · inactivo')+'</span></span>'
-    +'<button class="btn" style="padding:4px 10px;font-size:11px" onclick="toggleUsuarioActivo('+u.id+')">'+(u.activo?'Desactivar':'Activar')+'</button>'
-    +'</div>'
-  ).join('');
+  document.getElementById('usuarios-list').innerHTML=usuariosProvAll.map(u=>{
+    const resetForm=resetTargetId===u.id?
+      '<div style="display:flex;gap:6px;margin-top:6px">'
+      +'<input type="password" id="rp-input-'+u.id+'" placeholder="Nueva contraseña" style="flex:1;padding:6px 9px;border:1px solid var(--border2);border-radius:6px;background:var(--bg3);color:var(--text);font-size:12px;font-family:inherit" onkeydown="if(event.key===\'Enter\')submitResetPass('+u.id+')">'
+      +'<button class="btn btn-yellow" style="padding:4px 10px;font-size:11px" onclick="submitResetPass('+u.id+')">Guardar</button>'
+      +'</div><div id="rp-error-'+u.id+'" class="login-error" style="margin-top:2px"></div>'
+      :'';
+    return'<div style="padding:7px 0;border-bottom:1px solid var(--border)">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;gap:8px;flex-wrap:wrap">'
+      +'<span>'+u.nombre+' <span style="color:var(--text3);font-size:11px">@'+u.usuario+' · '+(u.rol==='admin'?'Admin':'Usuario')+(u.activo?'':' · inactivo')+'</span></span>'
+      +'<div style="display:flex;gap:6px">'
+      +'<button class="btn" style="padding:4px 10px;font-size:11px" onclick="toggleResetPass('+u.id+')">Contraseña</button>'
+      +'<button class="btn" style="padding:4px 10px;font-size:11px" onclick="toggleUsuarioActivo('+u.id+')">'+(u.activo?'Desactivar':'Activar')+'</button>'
+      +'</div></div>'+resetForm+'</div>';
+  }).join('');
+}
+function toggleResetPass(id){
+  resetTargetId=resetTargetId===id?null:id;
+  renderUsuariosList();
+  if(resetTargetId===id)setTimeout(()=>{const el=document.getElementById('rp-input-'+id);if(el)el.focus();},0);
+}
+async function submitResetPass(id){
+  const input=document.getElementById('rp-input-'+id);
+  const errEl=document.getElementById('rp-error-'+id);
+  const pass=input.value;
+  if(!pass||pass.length<4){errEl.textContent='Al menos 4 caracteres.';return;}
+  const hash=await sha256Hex(pass);
+  try{
+    await fetch(SUPABASE_URL+'/rest/v1/usuarios_proveedores?id=eq.'+id,{method:'PATCH',headers:SUPABASE_HEADERS,body:JSON.stringify({password_hash:hash})});
+    const u=usuariosProvAll.find(x=>x.id===id);if(u)u.password_hash=hash;
+    resetTargetId=null;renderUsuariosList();showToast('Contraseña actualizada ✓');
+  }catch(e){errEl.textContent='Error de conexión.';}
 }
 async function toggleUsuarioActivo(id){
   const u=usuariosProvAll.find(x=>x.id===id);if(!u)return;
